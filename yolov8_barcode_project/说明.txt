@@ -1,0 +1,19 @@
+如数据集：
+
+https://universe.roboflow.com/test-vn1io/barcode-detection-rjmov
+
+
+下载数据集解压于本目录的上级目录即可。
+目录结构示例
+├─test
+│  ├─images
+│  └─labels
+├─train
+│  ├─images
+│  └─labels
+├─valid
+│  ├─images
+│  └─labels
+└─yolov8_barcode_project
+│
+└─data.yaml
