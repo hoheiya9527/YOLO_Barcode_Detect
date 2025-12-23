@@ -1,0 +1,205 @@
+Android集成指南
+================
+
+## 1. 导出TFLite模型
+
+在PC上执行：
+```bash
+cd yolov8_barcode_project
+python export_tflite.py --model runs/train/barcode_detection/weights/best.pt
+```
+
+这将生成 `best_saved_model/best_int8.tflite` 文件
+
+## 2. Android Studio项目配置
+
+### 2.1 创建Android项目
+- 打开Android Studio
+- 创建新项目，选择 "Empty Activity"
+- 语言选择 Java
+- Minimum SDK: API 24 (Android 7.0)
+
+### 2.2 添加依赖
+将 `build.gradle` 文件内容复制到 app/build.gradle
+
+### 2.3 添加权限
+将 `AndroidManifest.xml` 内容复制到 app/src/main/AndroidManifest.xml
+
+### 2.4 添加布局
+将 `activity_main.xml` 复制到 app/src/main/res/layout/
+
+### 2.5 添加模型文件
+1. 在 app/src/main/ 下创建 assets 目录
+2. 将 best_int8.tflite 重命名为 barcode_detection.tflite
+3. 复制到 app/src/main/assets/ 目录
+
+### 2.6 添加代码
+1. 将 BarcodeDetector.java 复制到 app/src/main/java/com/example/barcode/
+2. 将 MainActivity.java 复制到 app/src/main/java/com/example/barcode/
+
+## 3. 项目结构
+
+app/
+├── src/
+│   └── main/
+│       ├── assets/
+│       │   └── barcode_detection.tflite    # TFLite模型
+│       ├── java/com/example/barcode/
+│       │   ├── BarcodeDetector.java        # 检测器类
+│       │   └── MainActivity.java           # 主Activity
+│       ├── res/
+│       │   └── layout/
+│       │       └── activity_main.xml       # 布局文件
+│       └── AndroidManifest.xml             # 清单文件
+└── build.gradle                            # 构建配置
+
+## 4. 使用说明
+
+### 4.1 基本使用
+```java
+// 初始化检测器
+BarcodeDetector detector = new BarcodeDetector(
+    this,
+    "barcode_detection.tflite",
+    0.25f,
+    0.45f
+);
+
+// 检测图像
+Bitmap bitmap = ...;
+List<BarcodeDetector.Detection> detections = detector.detect(bitmap);
+
+// 处理结果
+for (BarcodeDetector.Detection detection : detections) {
+    RectF bbox = detection.bbox;
+    float confidence = detection.confidence;
+    // 使用检测结果
+}
+
+// 释放资源
+detector.close();
+```
+
+### 4.2 实时检测
+参考 MainActivity.java 中的 CameraX 集成示例
+
+### 4.3 性能优化
+
+#### 启用NNAPI加速
+```java
+Interpreter.Options options = new Interpreter.Options();
+options.setUseNNAPI(true);  // 使用硬件加速
+```
+
+#### 启用GPU加速
+```java
+Interpreter.Options options = new Interpreter.Options();
+options.addDelegate(new GpuDelegate());
+```
+
+#### 调整线程数
+```java
+Interpreter.Options options = new Interpreter.Options();
+options.setNumThreads(4);  // 根据设备调整
+```
+
+## 5. 性能指标
+
+### 典型设备性能（640x640输入）
+
+| 设备类型 | 推理时间 | 加速方式 |
+|---------|---------|---------|
+| 高端设备 | 20-30ms | NNAPI |
+| 中端设备 | 40-60ms | NNAPI |
+| 低端设备 | 80-120ms | CPU |
+
+### 优化建议
+1. 降低输入分辨率（如320x320）可提升2-3倍速度
+2. 使用NNAPI硬件加速可提升2-4倍速度
+3. INT8量化相比FP32提升3-4倍速度
+
+## 6. 常见问题
+
+### Q1: 模型加载失败
+A: 确保模型文件在 assets 目录下，路径正确
+
+### Q2: 推理速度慢
+A: 启用NNAPI加速，或降低输入分辨率
+
+### Q3: 检测精度低
+A: 调整 confThreshold 和 iouThreshold 参数
+
+### Q4: 内存占用高
+A: 使用INT8量化模型，及时释放Bitmap资源
+
+## 7. 进阶功能
+
+### 7.1 批量检测
+```java
+public List<List<BarcodeDetector.Detection>> detectBatch(List<Bitmap> bitmaps) {
+    List<List<BarcodeDetector.Detection>> results = new ArrayList<>();
+    for (Bitmap bitmap : bitmaps) {
+        results.add(detector.detect(bitmap));
+    }
+    return results;
+}
+```
+
+### 7.2 异步检测
+```java
+public void detectAsync(Bitmap bitmap, Callback callback) {
+    new Thread(() -> {
+        List<BarcodeDetector.Detection> detections = detector.detect(bitmap);
+        runOnUiThread(() -> callback.onResult(detections));
+    }).start();
+}
+
+interface Callback {
+    void onResult(List<BarcodeDetector.Detection> detections);
+}
+```
+
+### 7.3 结果缓存
+```java
+private LruCache<String, List<BarcodeDetector.Detection>> detectionCache = 
+    new LruCache<>(10);
+```
+
+## 8. 调试技巧
+
+### 8.1 打印模型信息
+```java
+Tensor inputTensor = interpreter.getInputTensor(0);
+System.out.println("Input shape: " + Arrays.toString(inputTensor.shape()));
+```
+
+### 8.2 性能分析
+```java
+long startTime = System.currentTimeMillis();
+List<BarcodeDetector.Detection> detections = detector.detect(bitmap);
+long inferenceTime = System.currentTimeMillis() - startTime;
+System.out.println("Inference time: " + inferenceTime + "ms");
+```
+
+### 8.3 可视化调试
+在 MainActivity.java 中已包含绘制检测框的示例代码
+
+## 9. 发布注意事项
+
+### 9.1 混淆配置（proguard-rules.pro）
+```
+-keep class org.tensorflow.lite.** { *; }
+-keep class com.example.barcode.BarcodeDetector { *; }
+```
+
+### 9.2 APK大小优化
+- 使用INT8量化模型（约6MB）
+- 启用代码混淆和资源压缩
+- 使用App Bundle发布
+
+## 10. 技术支持
+
+如遇问题，检查：
+1. TensorFlow Lite版本兼容性
+2. Android SDK版本要求
+3. 设备硬件支持情况

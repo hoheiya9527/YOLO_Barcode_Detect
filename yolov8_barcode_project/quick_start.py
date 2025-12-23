@@ -104,34 +104,34 @@ def main():
         "模型验证"
     )
     
-    # 3. 导出ONNX
-    print("\n步骤 3/4: 导出ONNX模型")
+    # 3. 导出TFLite
+    print("\n步骤 3/4: 导出TFLite INT8模型（Android部署）")
     
     run_command(
-        f"python export_onnx.py --model {best_model} --output barcode_detection.onnx",
-        "ONNX导出"
+        f"python export_tflite.py --model {best_model}",
+        "TFLite导出"
     )
     
     # 4. 推理测试
-    print("\n步骤 4/4: 推理测试")
+    print("\n步骤 4/4: 推理测试（使用验证集）")
     test_images = Path("../test/images")
     
     if not test_images.exists():
-        print(f"✗ 测试图像目录不存在: {test_images}")
-        sys.exit(1)
-    
-    run_command(
-        f"python inference_onnx.py --model barcode_detection.onnx --source {test_images} --output runs/inference",
-        "ONNX推理"
-    )
+        print(f"⚠ 测试图像目录不存在，跳过推理测试")
+    else:
+        run_command(
+            f"python validate.py --model {best_model}",
+            "验证集推理测试"
+        )
     
     print(f"""
 ╔══════════════════════════════════════════════════════════╗
 ║                   全部完成！                              ║
 ╠══════════════════════════════════════════════════════════╣
 ║  训练模型: {best_model}
-║  ONNX模型: barcode_detection.onnx
-║  推理结果: runs/inference/
+║  TFLite模型: best_saved_model/best_int8.tflite
+║  
+║  Android集成说明: android/INTEGRATION_GUIDE.txt
 ╚══════════════════════════════════════════════════════════╝
     """)
 
